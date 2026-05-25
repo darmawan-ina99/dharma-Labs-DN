@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head><title>Dashboard</title></head>
+<body>
+    <h1>Dashboard Dapur Nona</h1>
+    <p>Sedang dalam pengembangan. Login berhasil!</p>
+    <button onclick="logout()">Logout</button>
+    <script>
+        async function logout() {
+            const { getAuth, signOut } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
+            const auth = getAuth();
+            await signOut(auth);
+            window.location.href = 'login.html';
+        }
+    </script>
+</body>
+</html>
