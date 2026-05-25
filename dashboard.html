@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Dapur Nona - Voice + Multi User</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: linear-gradient(135deg, #FFF5F5 0%, #FEF3C7 100%); font-family: 'Inter', sans-serif; padding-bottom: 80px; }
+        .card-premium { background: white; border-radius: 0.75rem; border: 1px solid rgba(220,38,38,0.1); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transition: all 0.2s; }
+        .card-premium:hover { transform: translateY(-2px); box-shadow: 0 8px 15px -3px rgba(220,38,38,0.1); }
+        .btn-primary { background: linear-gradient(135deg, #DC2626, #B91C1C); color: white; border-radius: 0.5rem; padding: 0.4rem 0.8rem; font-weight: 700; border: none; cursor: pointer; font-size: 0.7rem; }
+        .btn-primary:hover { background: linear-gradient(135deg, #B91C1C, #991B1B); transform: translateY(-2px); }
+        .btn-secondary { background: linear-gradient(135deg, #FBBF24, #F59E0B); color: #78350F; border-radius: 0.5rem; padding: 0.4rem 0.8rem; font-weight: 700; border: none; cursor: pointer; font-size: 0.7rem; }
+        .btn-secondary:hover { background: linear-gradient(135deg, #F59E0B, #D97706); transform: translateY(-2px); }
+        .input-light { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 0.5rem; padding: 0.5rem; font-size: 0.8rem; width: 100%; }
+        .modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); z-index:1000; justify-content: center; align-items: center; }
+        .modal-overlay.active { display: flex; }
+        .bottom-nav { position: fixed; bottom:0; left:0; right:0; background: white; border-top:1px solid #ddd; display: flex; justify-content: space-around; padding: 0.5rem; z-index:100; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; color: #94A3B8; }
+        .nav-item.active { color: #DC2626; font-weight: bold; }
+        .loading-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 2000; color: white; font-size: 1.2rem; display: none; }
+        .voice-btn { background: none; border: none; color: #DC2626; font-size: 1rem; cursor: pointer; padding: 0.3rem; border-radius: 50%; transition: 0.2s; }
+        .voice-btn:hover { background: #FEE2E2; transform: scale(1.05); }
+        .voice-btn.listening { color: #16A34A; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div id="loadingOverlay" class="loading-overlay"><i class="fas fa-spinner fa-spin mr-2"></i> Loading...</div>
+
+    <!-- Header -->
+    <div class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b py-2 px-3 flex justify-between items-center">
+        <div class="flex items-center gap-2">
+            <img src="https://i.imgur.com/kT4EWsI.png" class="w-8 h-8 rounded-full border-2 border-yellow-400" onerror="this.src='https://placehold.co/200x200/DC2626/FBBF24?text=DN';">
+            <span class="font-bold text-red-800 text-sm">DAPUR NONA</span>
+        </div>
+        <div class="flex gap-2">
+            <button id="logoutBtn" class="bg-red-100 text-red-600 px-2 py-1 rounded text-xs font-bold"><i class="fas fa-sign-out-alt mr-1"></i>Logout</button>
+            <button id="resetBtn" class="bg-red-50 text-red-500 border px-2 py-1 rounded text-xs font-bold"><i class="fas fa-save mr-1"></i>Tutup Hari</button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="p-3 space-y-4">
+        <!-- 6 Stat Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+            <div class="card-premium p-2 border-l-red-600"><div class="text-[9px] font-bold text-slate-400 uppercase">Omzet</div><div id="summaryOmzet" class="font-black text-red-700 text-sm">Rp0</div></div>
+            <div class="card-premium p-2 border-l-yellow-500"><div class="text-[9px] font-bold text-slate-400 uppercase">Biaya</div><div id="summaryExpense" class="font-black text-red-500 text-sm">Rp0</div></div>
+            <div class="card-premium p-2 border-l-green-500"><div class="text-[9px] font-bold text-slate-400 uppercase">Profit</div><div id="summaryNetProfit" class="font-black text-green-600 text-sm">Rp0</div></div>
+            <div class="card-premium p-2 border-l-blue-500"><div class="text-[9px] font-bold text-slate-400 uppercase">Supplier</div><div id="summarySupplierCount" class="font-black text-slate-800 text-sm">0</div></div>
+            <div class="card-premium p-2 border-l-purple-500"><div class="text-[9px] font-bold text-slate-400 uppercase">Stok Unit</div><div id="summaryTotalStock" class="font-black text-purple-700 text-sm">0 unit</div></div>
+            <div class="card-premium p-2 border-l-emerald-500"><div class="text-[9px] font-bold text-slate-400 uppercase">Terjual</div><div id="summaryTotalSold" class="font-black text-emerald-700 text-sm">0 unit</div></div>
+        </div>
+
+        <!-- Grafik -->
+        <div class="card-premium p-2"><canvas id="weeklyChart" height="150"></canvas></div>
+
+        <!-- Panel Titipan -->
+        <div id="panelTitip" class="space-y-2">
+            <div class="flex justify-between items-center"><h2 class="text-xs font-black uppercase">📦 Titipan</h2><button onclick="openModal('modalTitip')" class="btn-primary"><i class="fas fa-plus mr-1"></i>Tambah</button></div>
+            <div id="daftarTitipan" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div>
+            <div id="emptyTitip" class="text-center text-slate-400 py-4 text-xs hidden">Belum ada titipan</div>
+        </div>
+
+        <!-- Panel Penjualan -->
+        <div id="panelJual" class="hidden space-y-2"><h2 class="text-xs font-black uppercase">💰 Jual</h2><div id="jualContainer" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div><div id="emptyJual" class="text-center text-slate-400 py-4 text-xs hidden">Tidak ada stok</div></div>
+
+        <!-- Panel Pengeluaran -->
+        <div id="panelExp" class="hidden space-y-2"><div class="flex justify-between items-center"><h2 class="text-xs font-black uppercase">💸 Biaya</h2><button onclick="openModal('modalExp')" class="btn-secondary"><i class="fas fa-plus mr-1"></i>Catat</button></div><div id="daftarPengeluaran" class="space-y-2"></div><div id="emptyExpList" class="text-center text-slate-400 py-4 text-xs hidden">Belum ada catatan</div></div>
+
+        <!-- Panel Laporan -->
+        <div id="panelLap" class="hidden space-y-2"><h2 class="text-xs font-black uppercase">📊 Laporan</h2><div class="flex gap-2"><button id="viewDaily" class="bg-red-600 text-white px-2 py-0.5 rounded-full text-xs">Harian</button><button id="viewMonthly" class="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-xs">Bulanan</button><button id="viewYearly" class="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-xs">Tahunan</button></div><div id="laporanContent" class="bg-white rounded p-2 text-xs overflow-x-auto"></div></div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <div class="bottom-nav">
+        <div class="nav-item active" data-nav="titip"><i class="fas fa-boxes"></i><span class="text-[9px]">Titip</span></div>
+        <div class="nav-item" data-nav="jual"><i class="fas fa-cash-register"></i><span class="text-[9px]">Jual</span></div>
+        <div class="nav-item" data-nav="exp"><i class="fas fa-receipt"></i><span class="text-[9px]">Biaya</span></div>
+        <div class="nav-item" data-nav="lap"><i class="fas fa-chart-line"></i><span class="text-[9px]">Lap</span></div>
+    </div>
+
+    <!-- Modal Titipan (dengan Voice) -->
+    <div id="modalTitip" class="modal-overlay">
+        <div class="bg-white rounded-xl p-4 w-80">
+            <h3 class="font-bold mb-2 text-sm">📦 Tambah Titipan <span class="text-green-600 text-[9px]"><i class="fas fa-microphone-alt"></i> Bisa pakai suara</span></h3>
+            <div class="flex gap-1 mb-2">
+                <input id="inName" placeholder="Nama Supplier" class="input-light flex-1">
+                <button type="button" class="voice-btn" data-target="inName" title="Bicara nama supplier"><i class="fas fa-microphone"></i></button>
+            </div>
+            <input id="inPhone" placeholder="No WA (opsional)" class="input-light mb-2">
+            <select id="inPrice" class="input-light mb-2"><option value="5000">Rp5.000 (Fee Rp1.000)</option><option value="10000">Rp10.000 (Fee Rp1.500)</option></select>
+            <div class="flex gap-1 mb-3">
+                <input id="inQty" placeholder="Jumlah unit" type="number" class="input-light flex-1">
+                <button type="button" class="voice-btn" data-target="inQty" title="Bicara angka"><i class="fas fa-microphone"></i></button>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="closeModal('modalTitip')" class="flex-1 py-1 border rounded text-sm">Batal</button>
+                <button onclick="saveDeposit()" class="flex-1 btn-primary">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Biaya -->
+    <div id="modalExp" class="modal-overlay">
+        <div class="bg-white rounded-xl p-4 w-80">
+            <h3 class="font-bold mb-2 text-sm">💸 Catat Biaya</h3>
+            <select id="expCat" class="input-light mb-2"><option>Bahan Baku</option><option>Listrik & Air</option><option>Gas</option><option>Transportasi</option></select>
+            <input id="expDesc" placeholder="Keterangan" class="input-light mb-2">
+            <input id="expAmt" placeholder="Nominal" type="number" class="input-light mb-3">
+            <div class="flex gap-2">
+                <button onclick="closeModal('modalExp')" class="flex-1 py-1 border rounded text-sm">Batal</button>
+                <button onclick="saveExpense()" class="flex-1 btn-secondary">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // 🔴 Firebase Config (milik Anda, sudah diisi) 🔴
+        const firebaseConfig = {
+            apiKey: "AIzaSyA07nm6AuNKeqF20Q4TS15eK2tuTnC8WwU",
+            authDomain: "siti-ju.firebaseapp.com",
+            projectId: "siti-ju",
+            storageBucket: "siti-ju.firebasestorage.app",
+            messagingSenderId: "786109136745",
+            appId: "1:786109136745:web:c88bd7fe52d033b66547f8"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth();
+        const db = getFirestore();
+
+        let currentUser = null;
+        let todayDeposits = [], todaySales = [], todayExpenses = [], historyReports = [];
+        let weeklyChart = null;
+
+        const PROFIT_CONFIG = { 5000: 1000, 10000: 1500 };
+        function getFeeAmount(price) { return PROFIT_CONFIG[price] || 0; }
+
+        function showLoading(show) { document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none'; }
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        // ========== VOICE RECOGNITION ==========
+        let recognition = null;
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'id-ID';
+        } else if ('SpeechRecognition' in window) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'id-ID';
+        }
+
+        function startVoiceRecognition(targetInputId, isNumber = false) {
+            if (!recognition) { alert("Browser tidak mendukung voice input"); return; }
+            const input = document.getElementById(targetInputId);
+            if (!input) return;
+            const btn = document.querySelector(`.voice-btn[data-target="${targetInputId}"]`);
+            if (btn) btn.classList.add('listening');
+            recognition.start();
+            recognition.onresult = (event) => {
+                let spoken = event.results[0][0].transcript;
+                if (isNumber) {
+                    const wordToNum = { "nol":0,"satu":1,"dua":2,"tiga":3,"empat":4,"lima":5,"enam":6,"tujuh":7,"delapan":8,"sembilan":9,"sepuluh":10,"sebelas":11,"dua belas":12,"tiga belas":13,"empat belas":14,"lima belas":15,"enam belas":16,"tujuh belas":17,"delapan belas":18,"sembilan belas":19,"dua puluh":20,"tiga puluh":30,"empat puluh":40,"lima puluh":50,"enam puluh":60,"tujuh puluh":70,"delapan puluh":80,"sembilan puluh":90,"seratus":100 };
+                    let number = parseInt(spoken);
+                    if (isNaN(number)) {
+                        const lower = spoken.toLowerCase();
+                        if (wordToNum[lower]) number = wordToNum[lower];
+                        else { const match = lower.match(/\d+/); if (match) number = parseInt(match[0]); }
+                    }
+                    if (!isNaN(number) && number > 0) input.value = number;
+                    else alert("Tidak dikenali sebagai angka");
+                } else {
+                    input.value = spoken;
+                }
+                if (btn) btn.classList.remove('listening');
+            };
+            recognition.onerror = () => { if (btn) btn.classList.remove('listening'); alert("Gagal menangkap suara"); };
+            recognition.onend = () => { if (btn) btn.classList.remove('listening'); };
+        }
+
+        document.querySelectorAll('.voice-btn').forEach(btn => {
+            const target = btn.getAttribute('data-target');
+            const isNumber = (target === 'inQty');
+            btn.addEventListener('click', (e) => { e.preventDefault(); startVoiceRecognition(target, isNumber); });
+        });
+
+        // ========== FIRESTORE OPERATIONS ==========
+        async function loadUserData() {
+            if (!currentUser) return;
+            showLoading(true);
+            const userId = currentUser.uid;
+            const depositsSnap = await getDocs(query(collection(db, `users/${userId}/deposits`), orderBy('timestamp', 'desc')));
+            todayDeposits = depositsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const salesSnap = await getDocs(collection(db, `users/${userId}/sales`));
+            todaySales = salesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const expensesSnap = await getDocs(collection(db, `users/${userId}/expenses`));
+            todayExpenses = expensesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const historySnap = await getDocs(query(collection(db, `users/${userId}/history`), orderBy('dateISO', 'desc')));
+            historyReports = historySnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            showLoading(false);
+            renderAll();
+        }
+
+        window.saveDeposit = async () => {
+            const name = document.getElementById('inName').value.trim();
+            const phone = document.getElementById('inPhone').value.trim();
+            const price = parseInt(document.getElementById('inPrice').value);
+            const qty = parseInt(document.getElementById('inQty').value);
+            if (!name || qty < 1) { alert('Isi nama dan jumlah'); return; }
+            const newDeposit = { name, phone, price, qty, timestamp: new Date().toISOString() };
+            const docRef = await addDoc(collection(db, `users/${currentUser.uid}/deposits`), newDeposit);
+            todayDeposits.unshift({ id: docRef.id, ...newDeposit });
+            closeModal('modalTitip');
+            document.getElementById('inName').value = '';
+            document.getElementById('inPhone').value = '';
+            document.getElementById('inQty').value = '';
+            renderAll();
+        };
+
+        window.saveExpense = async () => {
+            const category = document.getElementById('expCat').value;
+            const desc = document.getElementById('expDesc').value.trim();
+            const amount = parseInt(document.getElementById('expAmt').value);
+            if (!desc || !amount) { alert('Isi keterangan dan nominal'); return; }
+            const newExp = { category, description: desc, amount, timestamp: new Date().toISOString() };
+            const docRef = await addDoc(collection(db, `users/${currentUser.uid}/expenses`), newExp);
+            todayExpenses.push({ id: docRef.id, ...newExp });
+            closeModal('modalExp');
+            document.getElementById('expDesc').value = '';
+            document.getElementById('expAmt').value = '';
+            renderAll();
+        };
+
+        window.addSale = async (depositId, price, delta) => {
+            const dep = todayDeposits.find(d => d.id === depositId);
+            if (!dep) return;
+            let sale = todaySales.find(s => s.depositId === depositId);
+            let current = sale ? sale.soldQty : 0;
+            let newSold = current + delta;
+            if (newSold < 0 || newSold > dep.qty) return;
+            if (sale) {
+                if (newSold === 0) {
+                    await deleteDoc(doc(db, `users/${currentUser.uid}/sales`, sale.id));
+                    todaySales = todaySales.filter(s => s.depositId !== depositId);
+                } else {
+                    sale.soldQty = newSold;
+                    const newSale = { depositId, price, soldQty: newSold, timestamp: new Date().toISOString() };
+                    await addDoc(collection(db, `users/${currentUser.uid}/sales`), newSale);
+                    todaySales = todaySales.filter(s => s.depositId !== depositId);
+                    todaySales.push({ id: sale.id, ...newSale });
+                }
+            } else {
+                const newSale = { depositId, price, soldQty: newSold, timestamp: new Date().toISOString() };
+                const docRef = await addDoc(collection(db, `users/${currentUser.uid}/sales`), newSale);
+                todaySales.push({ id: docRef.id, ...newSale });
+            }
+            renderAll();
+        };
+
+        window.deleteDeposit = async (id) => {
+            if (!confirm('Hapus titipan?')) return;
+            await deleteDoc(doc(db, `users/${currentUser.uid}/deposits`, id));
+            todayDeposits = todayDeposits.filter(d => d.id !== id);
+            todaySales = todaySales.filter(s => s.depositId !== id);
+            renderAll();
+        };
+
+        window.deleteExpense = async (id) => {
+            if (!confirm('Hapus pengeluaran?')) return;
+            await deleteDoc(doc(db, `users/${currentUser.uid}/expenses`, id));
+            todayExpenses = todayExpenses.filter(e => e.id !== id);
+            renderAll();
+        };
+
+        function getRemaining(depId) {
+            const dep = todayDeposits.find(d => d.id === depId);
+            if (!dep) return 0;
+            const sold = todaySales.filter(s => s.depositId === depId).reduce((a,b)=>a+b.soldQty,0);
+            return dep.qty - sold;
+        }
+
+        function renderAll() {
+            let omzet = 0, grossProfit = 0, totalExp = 0, totalSold = 0;
+            todaySales.forEach(s => { omzet += s.soldQty * s.price; grossProfit += s.soldQty * getFeeAmount(s.price); totalSold += s.soldQty; });
+            todayExpenses.forEach(e => totalExp += e.amount);
+            const totalStock = todayDeposits.reduce((sum,d)=> sum + getRemaining(d.id),0);
+            document.getElementById('summaryOmzet').innerText = 'Rp' + omzet.toLocaleString('id-ID');
+            document.getElementById('summaryExpense').innerText = 'Rp' + totalExp.toLocaleString('id-ID');
+            document.getElementById('summaryNetProfit').innerText = 'Rp' + (grossProfit - totalExp).toLocaleString('id-ID');
+            document.getElementById('summarySupplierCount').innerText = todayDeposits.length;
+            document.getElementById('summaryTotalStock').innerHTML = totalStock + ' unit';
+            document.getElementById('summaryTotalSold').innerHTML = totalSold + ' unit';
+
+            const titipDiv = document.getElementById('daftarTitipan');
+            if (todayDeposits.length === 0) document.getElementById('emptyTitip').classList.remove('hidden');
+            else {
+                document.getElementById('emptyTitip').classList.add('hidden');
+                titipDiv.innerHTML = todayDeposits.map(d => `<div class="card-premium p-2"><div class="font-bold text-xs">${d.name}</div><div class="text-[9px]">Stok: ${d.qty} | Sisa: ${getRemaining(d.id)}</div><button onclick="deleteDeposit('${d.id}')" class="text-red-400 text-xs mt-1"><i class="fas fa-trash"></i> Hapus</button></div>`).join('');
+            }
+
+            const jualDiv = document.getElementById('jualContainer');
+            const activeDeps = todayDeposits.filter(d => getRemaining(d.id) > 0);
+            if (activeDeps.length === 0) document.getElementById('emptyJual').classList.remove('hidden');
+            else {
+                document.getElementById('emptyJual').classList.add('hidden');
+                jualDiv.innerHTML = activeDeps.map(d => {
+                    const sale = todaySales.find(s => s.depositId === d.id) || { soldQty: 0 };
+                    return `<div class="card-premium p-2"><div class="font-bold text-xs">${d.name}</div><div class="flex items-center gap-2 my-1"><button onclick="addSale('${d.id}',${d.price},-1)" class="bg-gray-200 px-2 rounded text-sm">-</button><span>${sale.soldQty}</span><button onclick="addSale('${d.id}',${d.price},1)" class="bg-red-600 text-white px-2 rounded text-sm">+</button></div><div class="text-[9px]">Sisa: ${getRemaining(d.id)}</div></div>`;
+                }).join('');
+            }
+
+            const expDiv = document.getElementById('daftarPengeluaran');
+            if (todayExpenses.length === 0) document.getElementById('emptyExpList').classList.remove('hidden');
+            else {
+                document.getElementById('emptyExpList').classList.add('hidden');
+                expDiv.innerHTML = todayExpenses.map(e => `<div class="card-premium p-2 flex justify-between"><div><span class="font-bold text-xs">${e.category}</span><div class="text-[9px]">${e.description}</div></div><div><span class="text-xs">Rp${e.amount.toLocaleString('id-ID')}</span><button onclick="deleteExpense('${e.id}')" class="text-red-400 ml-2"><i class="fas fa-trash"></i></button></div></div>`).join('');
+            }
+            renderLaporan();
+            renderChart();
+        }
+
+        function renderLaporan() {
+            const container = document.getElementById('laporanContent');
+            if (historyReports.length === 0) { container.innerHTML = 'Belum ada laporan'; return; }
+            let html = '<table class="w-full text-xs"><thead><tr><th>Tanggal</th><th>Omzet</th><th>Profit</th></tr></thead><tbody>';
+            historyReports.forEach(h => {
+                html += `<tr><td class="whitespace-nowrap">${h.date}</td><td class="whitespace-nowrap">Rp${(h.omzet||0).toLocaleString('id-ID')}</td><td class="${(h.netProfit||0)>=0?'text-green-600':'text-red-600'}">Rp${(h.netProfit||0).toLocaleString('id-ID')}</td></tr>`;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function renderChart() {
+            if (weeklyChart) weeklyChart.destroy();
+            const ctx = document.getElementById('weeklyChart').getContext('2d');
+            const labels = historyReports.slice(0,7).reverse().map(h => h.date ? h.date.split(' ')[0] || '' : '');
+            const data = historyReports.slice(0,7).reverse().map(h => h.netProfit||0);
+            weeklyChart = new Chart(ctx, { type: 'line', data: { labels, datasets: [{ label: 'Profit', data, borderColor: '#DC2626', tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false } });
+        }
+
+        // Bottom navigation
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const nav = item.getAttribute('data-nav');
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                item.classList.add('active');
+                document.getElementById('panelTitip').classList.add('hidden');
+                document.getElementById('panelJual').classList.add('hidden');
+                document.getElementById('panelExp').classList.add('hidden');
+                document.getElementById('panelLap').classList.add('hidden');
+                document.getElementById(`panel${nav.charAt(0).toUpperCase() + nav.slice(1)}`).classList.remove('hidden');
+            });
+        });
+
+        document.getElementById('logoutBtn').onclick = async () => {
+            await signOut(auth);
+            window.location.href = 'login.html';
+        };
+
+        document.getElementById('resetBtn').onclick = async () => {
+            if (!confirm('Tutup hari? Data akan diarsipkan')) return;
+            let omzet = 0, grossProfit = 0, totalExp = 0;
+            todaySales.forEach(s => { omzet += s.soldQty * s.price; grossProfit += s.soldQty * getFeeAmount(s.price); });
+            todayExpenses.forEach(e => totalExp += e.amount);
+            const newHistory = {
+                date: new Date().toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'}),
+                dateISO: new Date().toISOString(),
+                omzet, grossProfit, expenses: totalExp,
+                netProfit: grossProfit - totalExp
+            };
+            await addDoc(collection(db, `users/${currentUser.uid}/history`), newHistory);
+            historyReports.unshift(newHistory);
+            const batch = writeBatch(db);
+            todayDeposits.forEach(d => batch.delete(doc(db, `users/${currentUser.uid}/deposits`, d.id)));
+            todaySales.forEach(s => batch.delete(doc(db, `users/${currentUser.uid}/sales`, s.id)));
+            todayExpenses.forEach(e => batch.delete(doc(db, `users/${currentUser.uid}/expenses`, e.id)));
+            await batch.commit();
+            todayDeposits = []; todaySales = []; todayExpenses = [];
+            renderAll();
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            if (!user) {
+                window.location.href = 'login.html';
+            } else {
+                currentUser = user;
+                loadUserData();
+            }
+        });
+
+        window.openModal = openModal;
+        window.closeModal = closeModal;
+    </script>
+</body>
+</html>
